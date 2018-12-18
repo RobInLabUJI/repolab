@@ -75,27 +75,27 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 
-RUN apt-get update && apt-get -yq dist-upgrade \
- && apt-get install -yq --no-install-recommends \
-	locales python-pip \
-	python3-pip python3-setuptools git build-essential \
- && apt-get clean \
+RUN apt-get update && apt-get -yq dist-upgrade \\
+ && apt-get install -yq --no-install-recommends \\
+	locales python-pip \\
+	python3-pip python3-setuptools git build-essential \\
+ && apt-get clean \\
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install jupyterlab bash_kernel \
+RUN pip3 install jupyterlab bash_kernel \\
  && python3 -m bash_kernel.install
 
-ENV SHELL=/bin/bash \
-	NB_USER=jovyan \
-	NB_UID=1000 \
-	LANG=en_US.UTF-8 \
+ENV SHELL=/bin/bash \\
+	NB_USER=jovyan \\
+	NB_UID=1000 \\
+	LANG=en_US.UTF-8 \\
 	LANGUAGE=en_US.UTF-8
 
 ENV HOME=/home/${NB_USER}
 
-RUN adduser --disabled-password \
-	--gecos "Default user" \
-	--uid ${NB_UID} \
+RUN adduser --disabled-password \\
+	--gecos "Default user" \\
+	--uid ${NB_UID} \\
 	${NB_USER}
 
 EXPOSE 8888
