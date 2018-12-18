@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, yaml
+import os.path
 
 PROJECT_DIR  = '/project'
 PROJECT_FILE = 'repolab.yaml'
@@ -101,8 +102,119 @@ EXPOSE 8888
 WORKDIR ${HOME}
 
 CMD ["jupyter", "lab", "--no-browser", "--ip=0.0.0.0", "--NotebookApp.token=''"]
+"""
 
+BUILD_SCRIPT = """#!/bin/sh
+docker build -f %s -t %s ."""
+
+RUN_SCRIPT   = """#!/bin/sh
+docker run --rm -p 8888:8888 %s"""
+
+NVIDIA_RUN_SCRIPT = """#!/bin/sh
+XAUTH=/tmp/.docker.xauth
+if [ ! -f $XAUTH ]
+then
+    xauth_list=$(xauth nlist :0 | sed -e 's/^..../ffff/')
+    if [ ! -z "$xauth_list" ]
+    then
+        echo $xauth_list | xauth -f $XAUTH nmerge -
+    else
+        touch $XAUTH
+    fi
+    chmod a+r $XAUTH
+fi
+docker run --rm \\
+    --env="DISPLAY" \\
+    --env="QT_X11_NO_MITSHM=1" \\
+    --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \\
+    --env="XAUTHORITY=$XAUTH" \\
+    --volume="$XAUTH:$XAUTH" \\
+    --runtime=nvidia \\
+    -p 8888:8888 %s"""
+
+def is_nvidia(base_image):
+    return base_image[:6] == "nvidia"
+
+DOCKER_APT = """
+RUN apt-get update \\
+ && apt-get install -yq --no-install-recommends \\
+%s && apt-get clean \\
+ && rm -rf /var/lib/apt/lists/*
+"""
+
+def apt_packages(yaml_file):
+    if 'apt-packages' in yaml_file.keys():
+        pstr = ''
+        for p in yaml_file['apt-packages']:
+            pstr += '    ' + p + ' \\\n'
+        return DOCKER_APT % pstr
+    else:
+        return ''
+
+DOCKER_CMAKE = """
+RUN git clone %s /%s \\
+ && cd /%s \\
+ && mkdir build \\
+ && cd build \\
+ && cmake .. \\
+ && make -j2 install \\
+ && rm -fr /%s
+"""
+
+def source_packages(yaml_file):
+    if 'source-packages' in yaml_file.keys():
+        sstr = ''
+        for p in yaml_file['source-packages']:
+            if 'depends' in p.keys() and p['depends']:
+                dstr = ''
+                for d in p['depends']:
+                    dstr += '    ' + d + ' \\\n'
+            sstr += DOCKER_APT % dstr
+            sstr += DOCKER_CMAKE % (p['repo'], p['name'], p['name'], p['name'])
+        return sstr
+    else:
+        return ''
+
+DOCKER_COPY_REPO = """
+COPY . ${HOME}
+RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
+"""
+
+DOCKER_BUILD_REPO = """
+RUN mkdir build \\
+ && cd build \\
+ && cmake .. \\
+ && make -j2
+"""
+
+DOCKER_IGNORE_FILE = ".dockerignore"
+
+DOCKER_IGNORE_CONTENTS = """README.md
+%s
+%s
+%s
+%s
+%s
+""" % (DOCKER_IGNORE_FILE, PROJECT_FILE, DOCKER_FILE, BUILD_FILE, RUN_FILE)
+
+NOTEBOOK_TAIL = """
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Bash",
+   "language": "bash",
+   "name": "bash"
+  },
+  "language_info": {
+   "codemirror_mode": "shell",
+   "file_extension": ".sh",
+   "mimetype": "text/x-sh",
+   "name": "bash"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
 """
 
 def main():
@@ -113,14 +225,30 @@ def main():
     with open(DOCKER_FILE, "w") as dockerfile:
         dockerfile.write("FROM %s\n" % base_image)
         dockerfile.write(DOCKER_JUPYTERLAB)
-        
+        dockerfile.write(apt_packages(yaml_file))
+        dockerfile.write(source_packages(yaml_file))
+        dockerfile.write(DOCKER_COPY_REPO)
+        dockerfile.write(DOCKER_BUILD_REPO)
+
     with open(BUILD_FILE, "w") as scriptfile:
-        scriptfile.write("#!/bin/sh\ndocker build -f %s -t %s ." % (DOCKER_FILE, yaml_file['name']))
+        scriptfile.write(BUILD_SCRIPT % (DOCKER_FILE, yaml_file['name']))
     os.chmod(BUILD_FILE, 0o755)
     
     with open(RUN_FILE, "w") as scriptfile:
-        scriptfile.write("#!/bin/sh\ndocker run --rm -p 8888:8888 %s" % (yaml_file['name']))
+        if is_nvidia(base_image):
+            run_script = NVIDIA_RUN_SCRIPT
+        else:
+            run_script = RUN_SCRIPT
+        scriptfile.write(run_script % (yaml_file['name']))
     os.chmod(RUN_FILE, 0o755)
     
+    with open(DOCKER_IGNORE_FILE, "w") as ignorefile:
+        ignorefile.write(DOCKER_IGNORE_CONTENTS)
+    
+    if os.path.isfile("README.md"):
+        os.system("notedown README.md | head -n -4 > README.ipynb")
+        with open("README.ipynb", "a") as myfile:
+            myfile.write(NOTEBOOK_TAIL)
+            
 if __name__ == "__main__":
     main()
