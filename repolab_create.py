@@ -77,7 +77,7 @@ ENV LC_ALL C.UTF-8
 
 RUN apt-get update && apt-get -yq dist-upgrade \\
  && apt-get install -yq --no-install-recommends \\
-	locales python-pip \\
+	locales python-pip cmake \\
 	python3-pip python3-setuptools git build-essential \\
  && apt-get clean \\
  && rm -rf /var/lib/apt/lists/*
