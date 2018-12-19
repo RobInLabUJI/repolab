@@ -25,7 +25,7 @@ def read_yaml_file():
 SUPPORTED_SYSTEMS = ['ubuntu', 'centos']
 SUPPORTED_VERSIONS = {'ubuntu': ['16.04', '18.04'], 
                       'centos': ['7'],
-                      'cuda': ['9.0', '9.1', '9.2', '10.0'],
+                      'cuda': ['8.0', '9.0', '9.1', '9.2', '10.0'],
                       'opengl': ['runtime', 'devel']}
 
 def get_base_image(yaml_file):
@@ -49,14 +49,14 @@ def get_base_image(yaml_file):
     try:
         cuda_version = str(base['cuda'])
         if not cuda_version in SUPPORTED_VERSIONS['cuda']:
-            print("CUDA version %s not supported. Valid options are: %s" % (version,  SUPPORTED_VERSIONS['cuda']))
+            print("CUDA version %s not supported. Valid options are: %s" % (cuda_version,  SUPPORTED_VERSIONS['cuda']))
             sys.exit(1)
     except KeyError:
         cuda_version = None
     try:
         opengl_option = str(base['opengl'])
         if not opengl_option in SUPPORTED_VERSIONS['opengl']:
-            print("OpenGL option %s not supported. Valid options are: %s" % (version,  SUPPORTED_VERSIONS['opengl']))
+            print("OpenGL option %s not supported. Valid options are: %s" % (opengl_option,  SUPPORTED_VERSIONS['opengl']))
             sys.exit(1)
     except KeyError:
         opengl_option = None
@@ -216,7 +216,12 @@ NOTEBOOK_TAIL = """
  "nbformat_minor": 2
 }
 """
-
+def custom_commands(yaml_file):
+    s = ''
+    for c in yaml_file['custom']:
+        s += "RUN " + c + "\n"
+    return s
+    
 def main():
     os.chdir(PROJECT_DIR)
     yaml_file = read_yaml_file()
@@ -228,7 +233,10 @@ def main():
         dockerfile.write(apt_packages(yaml_file))
         dockerfile.write(source_packages(yaml_file))
         dockerfile.write(DOCKER_COPY_REPO)
-        dockerfile.write(DOCKER_BUILD_REPO)
+        if 'custom' in yaml_file.keys():
+            dockerfile.write(custom_commands(yaml_file))
+        else:
+            dockerfile.write(DOCKER_BUILD_REPO)
 
     with open(BUILD_FILE, "w") as scriptfile:
         scriptfile.write(BUILD_SCRIPT % (DOCKER_FILE, yaml_file['name']))
