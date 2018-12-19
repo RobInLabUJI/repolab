@@ -151,6 +151,32 @@ def apt_packages(yaml_file):
     else:
         return ''
 
+DOCKER_PIP = """
+RUN pip install %s
+"""
+
+def pip_packages(yaml_file):
+    if 'pip-packages' in yaml_file.keys():
+        pstr = ''
+        for p in yaml_file['pip-packages']:
+            pstr += ' \\\n    ' + p
+        return DOCKER_PIP % pstr
+    else:
+        return ''
+
+DOCKER_PIP3 = """
+RUN pip3 install %s
+"""
+
+def pip3_packages(yaml_file):
+    if 'pip3-packages' in yaml_file.keys():
+        pstr = ''
+        for p in yaml_file['pip3-packages']:
+            pstr += ' \\\n    ' + p
+        return DOCKER_PIP3 % pstr
+    else:
+        return ''
+
 DOCKER_CMAKE = """
 RUN git clone %s /%s \\
  && cd /%s \\
@@ -231,6 +257,8 @@ def main():
         dockerfile.write("FROM %s\n" % base_image)
         dockerfile.write(DOCKER_JUPYTERLAB)
         dockerfile.write(apt_packages(yaml_file))
+        dockerfile.write(pip_packages(yaml_file))
+        dockerfile.write(pip3_packages(yaml_file))
         dockerfile.write(source_packages(yaml_file))
         dockerfile.write(DOCKER_COPY_REPO)
         if 'custom' in yaml_file.keys():
