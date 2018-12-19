@@ -169,7 +169,7 @@ def source_packages(yaml_file):
                 dstr = ''
                 for d in p['depends']:
                     dstr += '    ' + d + ' \\\n'
-            sstr += DOCKER_APT % dstr
+                sstr += DOCKER_APT % dstr
             sstr += DOCKER_CMAKE % (p['repo'], p['name'], p['name'], p['name'])
         return sstr
     else:
