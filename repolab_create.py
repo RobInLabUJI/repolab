@@ -51,6 +51,10 @@ def get_base_image(yaml_file):
         if not cuda_version in SUPPORTED_VERSIONS['cuda']:
             print("CUDA version %s not supported. Valid options are: %s" % (cuda_version,  SUPPORTED_VERSIONS['cuda']))
             sys.exit(1)
+        try:
+            cudnn_version = str(base['cudnn'])
+        except KeyError:
+            cudnn_version = "7"
     except KeyError:
         cuda_version = None
     try:
@@ -63,7 +67,7 @@ def get_base_image(yaml_file):
     if cuda_version and opengl_option:
         base_image = 'nvidia/cudagl:' + cuda_version + '-devel-' + system + version
     elif cuda_version:
-        base_image = 'nvidia/cuda:' + cuda_version + '-cudnn7-devel-' + system + version
+        base_image = 'nvidia/cuda:' + cuda_version + '-cudnn%s-devel-' % cudnn_version + system + version
     elif opengl_option:
         base_image = 'nvidia/opengl:1.0-glvnd-devel-' + system + version
     else:
@@ -203,6 +207,9 @@ def source_packages(yaml_file):
 
 DOCKER_COPY_REPO = """
 COPY . ${HOME}
+"""
+
+DOCKER_SET_USER = """
 RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 """
@@ -265,6 +272,7 @@ def main():
             dockerfile.write(custom_commands(yaml_file))
         else:
             dockerfile.write(DOCKER_BUILD_REPO)
+        dockerfile.write(DOCKER_SET_USER)
 
     with open(BUILD_FILE, "w") as scriptfile:
         scriptfile.write(BUILD_SCRIPT % (DOCKER_FILE, yaml_file['name']))
